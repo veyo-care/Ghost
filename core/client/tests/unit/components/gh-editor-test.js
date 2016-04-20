@@ -7,15 +7,22 @@ import {
 
 describeComponent(
     'gh-editor',
-    'GhEditorComponent',
+    'Unit: Component: gh-editor',
     {
+        unit: true,
         // specify the other units that are required for this test
-        // needs: ['component:foo', 'helper:bar']
+        needs: [
+            'component:gh-ed-editor',
+            'component:gh-ed-preview',
+            'helper:gh-count-words',
+            'helper:route-action',
+            'service:notifications'
+        ]
     },
     function () {
         it('renders', function () {
             // creates the component instance
-            var component = this.subject();
+            let component = this.subject();
 
             expect(component._state).to.equal('preRender');
 

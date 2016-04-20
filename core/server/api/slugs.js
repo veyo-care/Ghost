@@ -1,11 +1,11 @@
 // # Slug API
 // RESTful API for the Slug resource
-var canThis      = require('../permissions').canThis,
-    dataProvider = require('../models'),
+var dataProvider = require('../models'),
     errors       = require('../errors'),
     Promise      = require('bluebird'),
     pipeline     = require('../utils/pipeline'),
     utils        = require('./utils'),
+    i18n         = require('../i18n'),
     docName      = 'slugs',
 
     slugs,
@@ -39,20 +39,16 @@ slugs = {
         };
 
         /**
-         * ### Handle Permissions
-         * We need to be an authorized user and use an allowedType
+         * ### Check allowed types
+         * check if options.type contains an allowed type
          * @param {Object} options
          * @returns {Object} options
          */
-        function handlePermissions(options) {
-            return canThis(options.context).generate.slug().then(function () {
-                if (allowedTypes[options.type] === undefined) {
-                    return Promise.reject(new errors.BadRequestError('Unknown slug type \'' + options.type + '\'.'));
-                }
-                return options;
-            }).catch(function handleError(error) {
-                return errors.handleAPIError(error, 'You do not have permission to generate a slug.');
-            });
+        function checkAllowedTypes(options) {
+            if (allowedTypes[options.type] === undefined) {
+                return Promise.reject(new errors.BadRequestError(i18n.t('errors.api.slugs.unknownSlugType', {type: options.type})));
+            }
+            return options;
         }
 
         /**
@@ -68,14 +64,15 @@ slugs = {
         // Push all of our tasks into a `tasks` array in the correct order
         tasks = [
             utils.validate(docName, {opts: opts, attrs: attrs}),
-            handlePermissions,
+            utils.handlePermissions(docName, 'generate'),
+            checkAllowedTypes,
             modelQuery
         ];
 
         // Pipeline calls each task passing the result of one to be the arguments for the next
         return pipeline(tasks, options).then(function (slug) {
             if (!slug) {
-                return Promise.reject(new errors.InternalServerError('Could not generate slug.'));
+                return Promise.reject(new errors.InternalServerError(i18n.t('errors.api.slugs.couldNotGenerateSlug')));
             }
 
             return {slugs: [{slug: slug}]};

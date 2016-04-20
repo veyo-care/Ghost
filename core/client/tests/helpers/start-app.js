@@ -1,15 +1,17 @@
 import Ember from 'ember';
 import Application from '../../app';
-import Router from '../../router';
 import config from '../../config/environment';
 
-function startApp(attrs) {
-    var application,
-        attributes = Ember.merge({}, config.APP);
+const {assign, run} = Ember;
 
-    attributes = Ember.merge(attributes, attrs); // use defaults, but you can override;
+export default function startApp(attrs) {
+    let attributes = assign({}, config.APP);
+    let application;
 
-    Ember.run(function () {
+    // use defaults, but you can override;
+    attributes = assign(attributes, attrs);
+
+    run(function () {
         application = Application.create(attributes);
         application.setupForTesting();
         application.injectTestHelpers();
@@ -17,5 +19,3 @@ function startApp(attrs) {
 
     return application;
 }
-
-export default startApp;

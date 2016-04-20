@@ -3,13 +3,16 @@
 var Promise         = require('bluebird'),
     _               = require('lodash'),
     dataProvider    = require('../models'),
-    canThis         = require('../permissions').canThis,
     errors          = require('../errors'),
     utils           = require('./utils'),
     pipeline        = require('../utils/pipeline'),
+    i18n            = require('../i18n'),
 
     docName         = 'posts',
-    allowedIncludes = ['created_by', 'updated_by', 'published_by', 'author', 'tags', 'fields', 'next', 'previous'],
+    allowedIncludes = [
+        'created_by', 'updated_by', 'published_by', 'author', 'tags', 'fields',
+        'next', 'previous', 'next.author', 'next.tags', 'previous.author', 'previous.tags'
+    ],
     posts;
 
 /**
@@ -34,23 +37,16 @@ posts = {
      * @returns {Promise<Posts>} Posts Collection with Meta
      */
     browse: function browse(options) {
-        var extraOptions = ['tag', 'author', 'status', 'staticPages', 'featured'],
-            permittedOptions = utils.browseDefaultOptions.concat(extraOptions),
+        var extraOptions = ['status'],
+            permittedOptions,
             tasks;
 
-        /**
-         * ### Handle Permissions
-         * We need to either be an authorised user, or only return published posts.
-         * @param {Object} options
-         * @returns {Object} options
-         */
-        function handlePermissions(options) {
-            if (!(options.context && options.context.user)) {
-                options.status = 'published';
-            }
-
-            return options;
+        // Workaround to remove static pages from results
+        // TODO: rework after https://github.com/TryGhost/Ghost/issues/5151
+        if (options && options.context && (options.context.user || options.context.internal)) {
+            extraOptions.push('staticPages');
         }
+        permittedOptions = utils.browseDefaultOptions.concat(extraOptions);
 
         /**
          * ### Model Query
@@ -65,7 +61,7 @@ posts = {
         // Push all of our tasks into a `tasks` array in the correct order
         tasks = [
             utils.validate(docName, {opts: permittedOptions}),
-            handlePermissions,
+            utils.handlePublicPermissions(docName, 'browse'),
             utils.convertOptions(allowedIncludes),
             modelQuery
         ];
@@ -87,19 +83,6 @@ posts = {
             tasks;
 
         /**
-         * ### Handle Permissions
-         * We need to either be an authorised user, or only return published posts.
-         * @param {Object} options
-         * @returns {Object} options
-         */
-        function handlePermissions(options) {
-            if (!options.data.uuid && !(options.context && options.context.user)) {
-                options.data.status = 'published';
-            }
-            return options;
-        }
-
-        /**
          * ### Model Query
          * Make the call to the Model layer
          * @param {Object} options
@@ -112,7 +95,7 @@ posts = {
         // Push all of our tasks into a `tasks` array in the correct order
         tasks = [
             utils.validate(docName, {attrs: attrs}),
-            handlePermissions,
+            utils.handlePublicPermissions(docName, 'read'),
             utils.convertOptions(allowedIncludes),
             modelQuery
         ];
@@ -124,7 +107,7 @@ posts = {
                 return {posts: [result.toJSON(options)]};
             }
 
-            return Promise.reject(new errors.NotFoundError('Post not found.'));
+            return Promise.reject(new errors.NotFoundError(i18n.t('errors.api.posts.postNotFound')));
         });
     },
 
@@ -141,20 +124,6 @@ posts = {
         var tasks;
 
         /**
-         * ### Handle Permissions
-         * We need to be an authorised user to perform this action
-         * @param {Object} options
-         * @returns {Object} options
-         */
-        function handlePermissions(options) {
-            return canThis(options.context).edit.post(options.id).then(function permissionGranted() {
-                return options;
-            }).catch(function handleError(error) {
-                return errors.handleAPIError(error, 'You do not have permission to edit posts.');
-            });
-        }
-
-        /**
          * ### Model Query
          * Make the call to the Model layer
          * @param {Object} options
@@ -167,7 +136,7 @@ posts = {
         // Push all of our tasks into a `tasks` array in the correct order
         tasks = [
             utils.validate(docName, {opts: utils.idDefaultOptions}),
-            handlePermissions,
+            utils.handlePermissions(docName, 'edit'),
             utils.convertOptions(allowedIncludes),
             modelQuery
         ];
@@ -185,7 +154,7 @@ posts = {
                 return {posts: [post]};
             }
 
-            return Promise.reject(new errors.NotFoundError('Post not found.'));
+            return Promise.reject(new errors.NotFoundError(i18n.t('errors.api.posts.postNotFound')));
         });
     },
 
@@ -202,20 +171,6 @@ posts = {
         var tasks;
 
         /**
-         * ### Handle Permissions
-         * We need to be an authorised user to perform this action
-         * @param {Object} options
-         * @returns {Object} options
-         */
-        function handlePermissions(options) {
-            return canThis(options.context).add.post().then(function permissionGranted() {
-                return options;
-            }).catch(function () {
-                return Promise.reject(new errors.NoPermissionError('You do not have permission to add posts.'));
-            });
-        }
-
-        /**
          * ### Model Query
          * Make the call to the Model layer
          * @param {Object} options
@@ -228,7 +183,7 @@ posts = {
         // Push all of our tasks into a `tasks` array in the correct order
         tasks = [
             utils.validate(docName),
-            handlePermissions,
+            utils.handlePermissions(docName, 'add'),
             utils.convertOptions(allowedIncludes),
             modelQuery
         ];
@@ -251,60 +206,37 @@ posts = {
      *
      * @public
      * @param {{id (required), context,...}} options
-     * @return {Promise(Post)} Deleted Post
+     * @return {Promise}
      */
     destroy: function destroy(options) {
         var tasks;
 
         /**
-         * ### Handle Permissions
-         * We need to be an authorised user to perform this action
-         * @param {Object} options
-         * @returns {Object} options
+         * @function deletePost
+         * @param  {Object} options
          */
-        function handlePermissions(options) {
-            return canThis(options.context).destroy.post(options.id).then(function permissionGranted() {
-                options.status = 'all';
-                return options;
-            }).catch(function handleError(error) {
-                return errors.handleAPIError(error, 'You do not have permission to remove posts.');
-            });
-        }
+        function deletePost(options) {
+            var Post = dataProvider.Post,
+                data = _.defaults({status: 'all'}, options),
+                fetchOpts = _.defaults({require: true, columns: 'id'}, options);
 
-        /**
-         * ### Model Query
-         * Make the call to the Model layer
-         * @param {Object} options
-         * @returns {Object} options
-         */
-        function modelQuery(options) {
-            return posts.read(options).then(function (result) {
-                return dataProvider.Post.destroy(options).then(function () {
-                    return result;
-                });
+            return Post.findOne(data, fetchOpts).then(function (post) {
+                return post.destroy(options).return(null);
+            }).catch(Post.NotFoundError, function () {
+                throw new errors.NotFoundError(i18n.t('errors.api.posts.postNotFound'));
             });
         }
 
         // Push all of our tasks into a `tasks` array in the correct order
         tasks = [
             utils.validate(docName, {opts: utils.idDefaultOptions}),
-            handlePermissions,
+            utils.handlePermissions(docName, 'destroy'),
             utils.convertOptions(allowedIncludes),
-            modelQuery
+            deletePost
         ];
 
         // Pipeline calls each task passing the result of one to be the arguments for the next
-        return pipeline(tasks, options).then(function formatResponse(result) {
-            var deletedObj = result;
-
-            if (deletedObj.posts) {
-                _.each(deletedObj.posts, function (post) {
-                    post.statusChanged = true;
-                });
-            }
-
-            return deletedObj;
-        });
+        return pipeline(tasks, options);
     }
 };
 

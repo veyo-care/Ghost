@@ -1,26 +1,48 @@
 import BaseValidator from './base';
 
-var SigninValidator = BaseValidator.create({
-    properties: ['identification', 'password'],
-    identification: function (model) {
-        var id = model.get('identification');
+export default BaseValidator.create({
+    properties: ['identification', 'signin', 'forgotPassword'],
+    invalidMessage: 'Email address is not valid',
+
+    identification(model) {
+        let id = model.get('identification');
+
+        if (!validator.empty(id) && !validator.isEmail(id)) {
+            model.get('errors').add('identification', this.get('invalidMessage'));
+            this.invalidate();
+        }
+    },
+
+    signin(model) {
+        let id = model.get('identification');
+        let password = model.get('password');
+
+        model.get('errors').clear();
 
         if (validator.empty(id)) {
             model.get('errors').add('identification', 'Please enter an email');
             this.invalidate();
-        } else if (!validator.isEmail(id)) {
-            model.get('errors').add('identification', 'Invalid email');
+        }
+
+        if (!validator.empty(id) && !validator.isEmail(id)) {
+            model.get('errors').add('identification', this.get('invalidMessage'));
+            this.invalidate();
+        }
+
+        if (validator.empty(password)) {
+            model.get('errors').add('password', 'Please enter a password');
             this.invalidate();
         }
     },
-    password: function (model) {
-        var password = model.get('password') || '';
 
-        if (!validator.isLength(password, 1)) {
-            model.get('errors').add('password', 'Please enter a password');
+    forgotPassword(model) {
+        let id = model.get('identification');
+
+        model.get('errors').clear();
+
+        if (validator.empty(id) || !validator.isEmail(id)) {
+            model.get('errors').add('identification', this.get('invalidMessage'));
             this.invalidate();
         }
     }
 });
-
-export default SigninValidator;

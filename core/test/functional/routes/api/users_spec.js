@@ -1,5 +1,4 @@
 /*global describe, it, before, after */
-/*jshint expr:true*/
 var testUtils     = require('../../../utils'),
     should        = require('should'),
     supertest     = require('supertest'),
@@ -35,7 +34,7 @@ describe('User API', function () {
             request.get(testUtils.API.getApiQuery('users/'))
                 .set('Authorization', 'Bearer ' + accesstoken)
                 .expect('Content-Type', /json/)
-                .expect('Cache-Control', testUtils.cacheRules['private'])
+                .expect('Cache-Control', testUtils.cacheRules.private)
                 .expect(200)
                 .end(function (err, res) {
                     if (err) {
@@ -43,15 +42,15 @@ describe('User API', function () {
                     }
 
                     var jsonResponse = res.body;
-                    jsonResponse.users.should.exist;
+                    should.exist(jsonResponse.users);
                     testUtils.API.checkResponse(jsonResponse, 'users');
 
                     jsonResponse.users.should.have.length(1);
                     testUtils.API.checkResponse(jsonResponse.users[0], 'user');
 
-                    testUtils.API.isISO8601(jsonResponse.users[0].last_login).should.be.true;
-                    testUtils.API.isISO8601(jsonResponse.users[0].created_at).should.be.true;
-                    testUtils.API.isISO8601(jsonResponse.users[0].updated_at).should.be.true;
+                    testUtils.API.isISO8601(jsonResponse.users[0].last_login).should.be.true();
+                    testUtils.API.isISO8601(jsonResponse.users[0].created_at).should.be.true();
+                    testUtils.API.isISO8601(jsonResponse.users[0].updated_at).should.be.true();
 
                     done();
                 });
@@ -61,7 +60,7 @@ describe('User API', function () {
             request.get(testUtils.API.getApiQuery('users/'))
                 .set('Authorization', 'Bearer ' + accesstoken)
                 .expect('Content-Type', /json/)
-                .expect('Cache-Control', testUtils.cacheRules['private'])
+                .expect('Cache-Control', testUtils.cacheRules.private)
                 .expect(200)
                 .end(function (err, res) {
                     if (err) {
@@ -70,7 +69,7 @@ describe('User API', function () {
 
                     should.not.exist(res.headers['x-cache-invalidate']);
                     var jsonResponse = res.body;
-                    jsonResponse.users.should.exist;
+                    should.exist(jsonResponse.users);
                     testUtils.API.checkResponse(jsonResponse, 'users');
 
                     jsonResponse.users.should.have.length(1);
@@ -83,7 +82,7 @@ describe('User API', function () {
             request.get(testUtils.API.getApiQuery('users/?include=roles'))
                 .set('Authorization', 'Bearer ' + accesstoken)
                 .expect('Content-Type', /json/)
-                .expect('Cache-Control', testUtils.cacheRules['private'])
+                .expect('Cache-Control', testUtils.cacheRules.private)
                 .expect(200)
                 .end(function (err, res) {
                     if (err) {
@@ -92,7 +91,7 @@ describe('User API', function () {
 
                     should.not.exist(res.headers['x-cache-invalidate']);
                     var jsonResponse = res.body;
-                    jsonResponse.users.should.exist;
+                    should.exist(jsonResponse.users);
                     testUtils.API.checkResponse(jsonResponse, 'users');
 
                     jsonResponse.users.should.have.length(1);
@@ -107,7 +106,7 @@ describe('User API', function () {
             request.get(testUtils.API.getApiQuery('users/me/'))
                 .set('Authorization', 'Bearer ' + accesstoken)
                 .expect('Content-Type', /json/)
-                .expect('Cache-Control', testUtils.cacheRules['private'])
+                .expect('Cache-Control', testUtils.cacheRules.private)
                 .expect(200)
                 .end(function (err, res) {
                     if (err) {
@@ -116,7 +115,7 @@ describe('User API', function () {
 
                     should.not.exist(res.headers['x-cache-invalidate']);
                     var jsonResponse = res.body;
-                    jsonResponse.users.should.exist;
+                    should.exist(jsonResponse.users);
                     should.not.exist(jsonResponse.meta);
 
                     jsonResponse.users.should.have.length(1);
@@ -129,7 +128,7 @@ describe('User API', function () {
             request.get(testUtils.API.getApiQuery('users/1/'))
                 .set('Authorization', 'Bearer ' + accesstoken)
                 .expect('Content-Type', /json/)
-                .expect('Cache-Control', testUtils.cacheRules['private'])
+                .expect('Cache-Control', testUtils.cacheRules.private)
                 .expect(200)
                 .end(function (err, res) {
                     if (err) {
@@ -138,7 +137,7 @@ describe('User API', function () {
 
                     should.not.exist(res.headers['x-cache-invalidate']);
                     var jsonResponse = res.body;
-                    jsonResponse.users.should.exist;
+                    should.exist(jsonResponse.users);
                     should.not.exist(jsonResponse.meta);
 
                     jsonResponse.users.should.have.length(1);
@@ -151,7 +150,7 @@ describe('User API', function () {
             request.get(testUtils.API.getApiQuery('users/slug/joe-bloggs/'))
                 .set('Authorization', 'Bearer ' + accesstoken)
                 .expect('Content-Type', /json/)
-                .expect('Cache-Control', testUtils.cacheRules['private'])
+                .expect('Cache-Control', testUtils.cacheRules.private)
                 .expect(200)
                 .end(function (err, res) {
                     if (err) {
@@ -160,7 +159,7 @@ describe('User API', function () {
 
                     should.not.exist(res.headers['x-cache-invalidate']);
                     var jsonResponse = res.body;
-                    jsonResponse.users.should.exist;
+                    should.exist(jsonResponse.users);
                     should.not.exist(jsonResponse.meta);
 
                     jsonResponse.users.should.have.length(1);
@@ -173,7 +172,7 @@ describe('User API', function () {
             request.get(testUtils.API.getApiQuery('users/email/jbloggs%40example.com/'))
                 .set('Authorization', 'Bearer ' + accesstoken)
                 .expect('Content-Type', /json/)
-                .expect('Cache-Control', testUtils.cacheRules['private'])
+                .expect('Cache-Control', testUtils.cacheRules.private)
                 .expect(200)
                 .end(function (err, res) {
                     if (err) {
@@ -182,7 +181,7 @@ describe('User API', function () {
 
                     should.not.exist(res.headers['x-cache-invalidate']);
                     var jsonResponse = res.body;
-                    jsonResponse.users.should.exist;
+                    should.exist(jsonResponse.users);
                     should.not.exist(jsonResponse.meta);
 
                     jsonResponse.users.should.have.length(1);
@@ -195,7 +194,7 @@ describe('User API', function () {
             request.get(testUtils.API.getApiQuery('users/me/?include=roles'))
                 .set('Authorization', 'Bearer ' + accesstoken)
                 .expect('Content-Type', /json/)
-                .expect('Cache-Control', testUtils.cacheRules['private'])
+                .expect('Cache-Control', testUtils.cacheRules.private)
                 .expect(200)
                 .end(function (err, res) {
                     if (err) {
@@ -204,7 +203,7 @@ describe('User API', function () {
 
                     should.not.exist(res.headers['x-cache-invalidate']);
                     var jsonResponse = res.body;
-                    jsonResponse.users.should.exist;
+                    should.exist(jsonResponse.users);
                     should.not.exist(jsonResponse.meta);
 
                     jsonResponse.users.should.have.length(1);
@@ -218,7 +217,7 @@ describe('User API', function () {
             request.get(testUtils.API.getApiQuery('users/me/?include=roles,roles.permissions'))
                 .set('Authorization', 'Bearer ' + accesstoken)
                 .expect('Content-Type', /json/)
-                .expect('Cache-Control', testUtils.cacheRules['private'])
+                .expect('Cache-Control', testUtils.cacheRules.private)
                 .expect(200)
                 .end(function (err, res) {
                     if (err) {
@@ -227,7 +226,7 @@ describe('User API', function () {
 
                     should.not.exist(res.headers['x-cache-invalidate']);
                     var jsonResponse = res.body;
-                    jsonResponse.users.should.exist;
+                    should.exist(jsonResponse.users);
                     should.not.exist(jsonResponse.meta);
 
                     jsonResponse.users.should.have.length(1);
@@ -243,7 +242,7 @@ describe('User API', function () {
             request.get(testUtils.API.getApiQuery('users/slug/joe-bloggs/?include=roles,roles.permissions'))
                 .set('Authorization', 'Bearer ' + accesstoken)
                 .expect('Content-Type', /json/)
-                .expect('Cache-Control', testUtils.cacheRules['private'])
+                .expect('Cache-Control', testUtils.cacheRules.private)
                 .expect(200)
                 .end(function (err, res) {
                     if (err) {
@@ -252,7 +251,7 @@ describe('User API', function () {
 
                     should.not.exist(res.headers['x-cache-invalidate']);
                     var jsonResponse = res.body;
-                    jsonResponse.users.should.exist;
+                    should.exist(jsonResponse.users);
                     should.not.exist(jsonResponse.meta);
 
                     jsonResponse.users.should.have.length(1);
@@ -268,7 +267,7 @@ describe('User API', function () {
             request.get(testUtils.API.getApiQuery('users/99/'))
                 .set('Authorization', 'Bearer ' + accesstoken)
                 .expect('Content-Type', /json/)
-                .expect('Cache-Control', testUtils.cacheRules['private'])
+                .expect('Cache-Control', testUtils.cacheRules.private)
                 .expect(404)
                 .end(function (err, res) {
                     if (err) {
@@ -277,8 +276,8 @@ describe('User API', function () {
 
                     should.not.exist(res.headers['x-cache-invalidate']);
                     var jsonResponse = res.body;
-                    jsonResponse.should.exist;
-                    jsonResponse.errors.should.exist;
+                    should.exist(jsonResponse);
+                    should.exist(jsonResponse.errors);
                     testUtils.API.checkResponseValue(jsonResponse.errors[0], ['message', 'errorType']);
                     done();
                 });
@@ -288,7 +287,7 @@ describe('User API', function () {
             request.get(testUtils.API.getApiQuery('users/slug/blargh/'))
                 .set('Authorization', 'Bearer ' + accesstoken)
                 .expect('Content-Type', /json/)
-                .expect('Cache-Control', testUtils.cacheRules['private'])
+                .expect('Cache-Control', testUtils.cacheRules.private)
                 .expect(404)
                 .end(function (err, res) {
                     if (err) {
@@ -297,8 +296,8 @@ describe('User API', function () {
 
                     should.not.exist(res.headers['x-cache-invalidate']);
                     var jsonResponse = res.body;
-                    jsonResponse.should.exist;
-                    jsonResponse.errors.should.exist;
+                    should.exist(jsonResponse);
+                    should.exist(jsonResponse.errors);
                     testUtils.API.checkResponseValue(jsonResponse.errors[0], ['message', 'errorType']);
                     done();
                 });
@@ -309,7 +308,7 @@ describe('User API', function () {
             request.get(testUtils.API.getApiQuery('users/me/'))
                 .set('Authorization', 'Bearer ' + accesstoken)
                 .expect('Content-Type', /json/)
-                .expect('Cache-Control', testUtils.cacheRules['private'])
+                .expect('Cache-Control', testUtils.cacheRules.private)
                 .end(function (err, res) {
                     if (err) {
                         return done(err);
@@ -318,7 +317,7 @@ describe('User API', function () {
                     var jsonResponse = res.body,
                         changedValue = 'http://joe-bloggs.ghost.org',
                         dataToSend;
-                    jsonResponse.users[0].should.exist;
+                    should.exist(jsonResponse.users[0]);
                     testUtils.API.checkResponse(jsonResponse.users[0], 'user');
 
                     dataToSend = {users: [
@@ -329,7 +328,7 @@ describe('User API', function () {
                         .set('Authorization', 'Bearer ' + accesstoken)
                         .send(dataToSend)
                         .expect('Content-Type', /json/)
-                        .expect('Cache-Control', testUtils.cacheRules['private'])
+                        .expect('Cache-Control', testUtils.cacheRules.private)
                         .expect(200)
                         .end(function (err, res) {
                             if (err) {
@@ -338,7 +337,7 @@ describe('User API', function () {
 
                             var putBody = res.body;
                             res.headers['x-cache-invalidate'].should.eql('/*');
-                            putBody.users[0].should.exist;
+                            should.exist(putBody.users[0]);
                             putBody.users[0].website.should.eql(changedValue);
                             putBody.users[0].email.should.eql(jsonResponse.users[0].email);
                             testUtils.API.checkResponse(putBody.users[0], 'user');
@@ -351,7 +350,7 @@ describe('User API', function () {
             request.get(testUtils.API.getApiQuery('users/me/'))
                 .set('Authorization', 'Bearer ' + accesstoken)
                 .expect('Content-Type', /json/)
-                .expect('Cache-Control', testUtils.cacheRules['private'])
+                .expect('Cache-Control', testUtils.cacheRules.private)
                 .end(function (err, res) {
                     if (err) {
                         return done(err);

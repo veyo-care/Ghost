@@ -1,17 +1,18 @@
 import Ember from 'ember';
 
-export default Ember.Mixin.create({
+const {Mixin, run} = Ember;
+
+export default Mixin.create({
     isLoading: false,
     triggerPoint: 100,
 
     /**
      * Determines if we are past a scroll point where we need to fetch the next page
-     * @param {object} event The scroll event
      */
-    checkScroll: function (event) {
-        var element = event.target,
-            triggerPoint = this.get('triggerPoint'),
-            isLoading = this.get('isLoading');
+    _checkScroll() {
+        let element = this.get('element');
+        let triggerPoint = this.get('triggerPoint');
+        let isLoading = this.get('isLoading');
 
         // If we haven't passed our threshold or we are already fetching content, exit
         if (isLoading || (element.scrollTop + element.clientHeight + triggerPoint <= element.scrollHeight)) {
@@ -21,17 +22,21 @@ export default Ember.Mixin.create({
         this.sendAction('fetch');
     },
 
-    didInsertElement: function () {
-        var el = this.get('element');
+    didInsertElement() {
+        this._super(...arguments);
 
-        el.onscroll = Ember.run.bind(this, this.checkScroll);
+        let el = this.get('element');
 
-        if (el.scrollHeight <= el.clientHeight) {
-            this.sendAction('fetch');
-        }
+        el.onscroll = run.bind(this, this._checkScroll);
+
+        // run on load, on the offchance that the initial load
+        // did not fill the view.
+        this._checkScroll();
     },
 
-    willDestroyElement: function () {
+    willDestroyElement() {
+        this._super(...arguments);
+
         // turn off the scroll handler
         this.get('element').onscroll = null;
     }

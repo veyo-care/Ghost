@@ -1,13 +1,19 @@
 import Ember from 'ember';
 
-export default Ember.Mixin.create({
-    application: Ember.inject.controller(),
+const {
+    Mixin,
+    computed,
+    inject: {controller}
+} = Ember;
 
-    isViewingSubview: Ember.computed('application.showSettingsMenu', {
-        get: function () {
+export default Mixin.create({
+    application: controller(),
+
+    isViewingSubview: computed('application.showSettingsMenu', {
+        get() {
             return false;
         },
-        set: function (key, value) {
+        set(key, value) {
             // Not viewing a subview if we can't even see the PSM
             if (!this.get('application.showSettingsMenu')) {
                 return false;
@@ -17,11 +23,11 @@ export default Ember.Mixin.create({
     }),
 
     actions: {
-        showSubview: function () {
+        showSubview() {
             this.set('isViewingSubview', true);
         },
 
-        closeSubview: function () {
+        closeSubview() {
             this.set('isViewingSubview', false);
         }
     }

@@ -15,12 +15,13 @@ var _              = require('lodash'),
     roles          = require('./roles'),
     settings       = require('./settings'),
     tags           = require('./tags'),
+    clients        = require('./clients'),
     themes         = require('./themes'),
     users          = require('./users'),
     slugs          = require('./slugs'),
     authentication = require('./authentication'),
     uploads        = require('./upload'),
-    dataExport     = require('../data/export'),
+    exporter       = require('../data/export'),
 
     http,
     addHeaders,
@@ -55,20 +56,22 @@ cacheInvalidationHeader = function cacheInvalidationHeader(req, result) {
     var parsedUrl = req._parsedUrl.pathname.replace(/^\/|\/$/g, '').split('/'),
         method = req.method,
         endpoint = parsedUrl[0],
-        cacheInvalidate,
         jsonResult = result.toJSON ? result.toJSON() : result,
+        INVALIDATE_ALL = '/*',
         post,
         hasStatusChanged,
-        wasDeleted,
         wasPublishedUpdated;
 
-    if (method === 'POST' || method === 'PUT' || method === 'DELETE') {
-        if (endpoint === 'settings' || endpoint === 'users' || endpoint === 'db' || endpoint === 'tags') {
-            cacheInvalidate = '/*';
+    if (['POST', 'PUT', 'DELETE'].indexOf(method) > -1) {
+        if (['settings', 'users', 'db', 'tags'].indexOf(endpoint) > -1) {
+            return INVALIDATE_ALL;
         } else if (endpoint === 'posts') {
+            if (method === 'DELETE') {
+                return INVALIDATE_ALL;
+            }
+
             post = jsonResult.posts[0];
             hasStatusChanged = post.statusChanged;
-            wasDeleted = method === 'DELETE';
             // Invalidate cache when post was updated but not when post is draft
             wasPublishedUpdated = method === 'PUT' && post.status === 'published';
 
@@ -76,15 +79,13 @@ cacheInvalidationHeader = function cacheInvalidationHeader(req, result) {
             delete post.statusChanged;
 
             // Don't set x-cache-invalidate header for drafts
-            if (hasStatusChanged || wasDeleted || wasPublishedUpdated) {
-                cacheInvalidate = '/*';
+            if (hasStatusChanged || wasPublishedUpdated) {
+                return INVALIDATE_ALL;
             } else {
-                cacheInvalidate = '/' + config.routeKeywords.preview + '/' + post.uuid + '/';
+                return '/' + config.routeKeywords.preview + '/' + post.uuid + '/';
             }
         }
     }
-
-    return cacheInvalidate;
 };
 
 /**
@@ -137,7 +138,7 @@ locationHeader = function locationHeader(req, result) {
  * @return {string}
  */
 contentDispositionHeader = function contentDispositionHeader() {
-    return dataExport.fileName().then(function then(filename) {
+    return exporter.fileName().then(function then(filename) {
         return 'Attachment; filename="' + filename + '"';
     });
 };
@@ -191,7 +192,7 @@ http = function http(apiMethod) {
     return function apiHandler(req, res, next) {
         // We define 2 properties for using as arguments in API calls:
         var object = req.body,
-            options = _.extend({}, req.files, req.query, req.params, {
+            options = _.extend({}, req.file, req.query, req.params, {
                 context: {
                     user: (req.user && req.user.id) ? req.user.id : null
                 }
@@ -208,6 +209,10 @@ http = function http(apiMethod) {
             // Add X-Cache-Invalidate, Location, and Content-Disposition headers
             return addHeaders(apiMethod, req, res, (response || {}));
         }).then(function then(response) {
+            if (req.method === 'DELETE') {
+                return res.status(204).end();
+            }
+
             // Send a properly formatting HTTP response containing the data with correct headers
             res.json(response || {});
         }).catch(function onAPIError(error) {
@@ -233,6 +238,7 @@ module.exports = {
     roles: roles,
     settings: settings,
     tags: tags,
+    clients: clients,
     themes: themes,
     users: users,
     slugs: slugs,

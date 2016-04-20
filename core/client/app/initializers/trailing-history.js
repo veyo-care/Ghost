@@ -1,23 +1,17 @@
 import Ember from 'ember';
-/*global Ember */
 
-var trailingHistory,
-    registerTrailingLocationHistory;
+const {HistoryLocation} = Ember;
 
-trailingHistory = Ember.HistoryLocation.extend({
-    formatURL: function () {
-        // jscs: disable
-        return this._super.apply(this, arguments).replace(/\/?$/, '/');
-        // jscs: enable
+let trailingHistory = HistoryLocation.extend({
+    formatURL() {
+        return this._super(...arguments).replace(/\/?$/, '/');
     }
 });
 
-registerTrailingLocationHistory = {
+export default {
     name: 'registerTrailingLocationHistory',
 
-    initialize: function (container, application) {
+    initialize(application) {
         application.register('location:trailing-history', trailingHistory);
     }
 };
-
-export default registerTrailingLocationHistory;

@@ -4,44 +4,42 @@ import base from 'ghost/mixins/editor-base-route';
 export default AuthenticatedRoute.extend(base, {
     titleToken: 'Editor',
 
-    model: function () {
-        var self = this;
-        return this.get('session.user').then(function (user) {
-            return self.store.createRecord('post', {
+    model() {
+        return this.get('session.user').then((user) => {
+            return this.store.createRecord('post', {
                 author: user
             });
         });
     },
 
-    renderTemplate: function (controller, model) {
+    renderTemplate(controller, model) {
         this.render('editor/edit', {
-            controller: controller,
-            model: model
+            controller,
+            model
         });
 
         this.render('post-settings-menu', {
+            model,
             into: 'application',
-            outlet: 'settings-menu',
-            model: model
+            outlet: 'settings-menu'
         });
     },
 
-    setupController: function (controller, model) {
-        var psm = this.controllerFor('post-settings-menu');
+    setupController() {
+        let psm = this.controllerFor('post-settings-menu');
 
         // make sure there are no titleObserver functions hanging around
         // from previous posts
         psm.removeObserver('titleScratch', psm, 'titleObserver');
 
-        // Ensure that the PSM Image Uploader and Publish Date selector resets
-        psm.send('resetUploader');
+        // Ensure that the PSM Publish Date selector resets
         psm.send('resetPubDate');
 
-        this._super(controller, model);
+        this._super(...arguments);
     },
 
     actions: {
-        willTransition: function (transition) {
+        willTransition(transition) {
             // decorate the transition object so the editor.edit route
             // knows this was the previous active route
             transition.data.fromNew = true;

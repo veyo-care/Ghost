@@ -1,24 +1,30 @@
 import Ember from 'ember';
 
-export default Ember.Component.extend({
+const {
+    Component,
+    computed,
+    inject: {service}
+} = Ember;
+
+export default Component.extend({
     tagName: '',
 
     user: null,
 
-    ghostPaths: Ember.inject.service('ghost-paths'),
+    ghostPaths: service(),
 
-    userDefault: Ember.computed('ghostPaths', function () {
-        return this.get('ghostPaths.url').asset('/shared/img/user-image.png');
+    userDefault: computed('ghostPaths', function () {
+        return `${this.get('ghostPaths.subdir')}/ghost/img/user-image.png`;
     }),
 
-    userImageBackground: Ember.computed('user.image', 'userDefault', function () {
-        var url = this.get('user.image') || this.get('userDefault');
+    userImageBackground: computed('user.image', 'userDefault', function () {
+        let url = this.get('user.image') || this.get('userDefault');
 
-        return `background-image: url(${url})`.htmlSafe();
+        return Ember.String.htmlSafe(`background-image: url(${url})`);
     }),
 
-    lastLogin: Ember.computed('user.last_login', function () {
-        var lastLogin = this.get('user.last_login');
+    lastLogin: computed('user.lastLogin', function () {
+        let lastLogin = this.get('user.lastLogin');
 
         return lastLogin ? lastLogin.fromNow() : '(Never)';
     })

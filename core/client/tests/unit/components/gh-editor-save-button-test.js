@@ -7,18 +7,20 @@ import {
 
 describeComponent(
     'gh-editor-save-button',
-    'GhEditorSaveButtonComponent',
+    'Unit: Component: gh-editor-save-button',
     {
+        unit: true,
         needs: [
             'component:gh-dropdown-button',
             'component:gh-dropdown',
+            'component:gh-spin-button',
             'service:dropdown'
         ]
     },
     function () {
         it('renders', function () {
             // creates the component instance
-            var component = this.subject();
+            let component = this.subject();
 
             expect(component._state).to.equal('preRender');
 

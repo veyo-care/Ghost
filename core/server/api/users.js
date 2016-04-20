@@ -11,10 +11,11 @@ var Promise         = require('bluebird'),
     config          = require('../config'),
     mail            = require('./mail'),
     pipeline        = require('../utils/pipeline'),
+    i18n            = require('../i18n'),
 
     docName         = 'users',
     // TODO: implement created_by, updated_by
-    allowedIncludes = ['permissions', 'roles', 'roles.permissions'],
+    allowedIncludes = ['count.posts', 'permissions', 'roles', 'roles.permissions'],
     users,
     sendInviteEmail;
 
@@ -49,7 +50,7 @@ sendInviteEmail = function sendInviteEmail(user) {
             mail: [{
                 message: {
                     to: user.email,
-                    subject: emailData.invitedByName + ' has invited you to join ' + emailData.blogName,
+                    subject: i18n.t('common.api.users.mail.invitedByName', {invitedByName: emailData.invitedByName, blogName: emailData.blogName}),
                     html: emailContent.html,
                     text: emailContent.text
                 },
@@ -73,23 +74,9 @@ users = {
      * @returns {Promise<Users>} Users Collection
      */
     browse: function browse(options) {
-        var extraOptions = ['role', 'status'],
+        var extraOptions = ['status'],
             permittedOptions = utils.browseDefaultOptions.concat(extraOptions),
             tasks;
-
-        /**
-         * ### Handle Permissions
-         * We need to either be an authorised user, or only return published posts.
-         * @param {Object} options
-         * @returns {Object} options
-         */
-        function handlePermissions(options) {
-            return canThis(options.context).browse.user().then(function permissionGranted() {
-                return options;
-            }).catch(function handleError(error) {
-                return errors.handleAPIError(error, 'You do not have permission to browse users.');
-            });
-        }
 
         /**
          * ### Model Query
@@ -104,7 +91,7 @@ users = {
         // Push all of our tasks into a `tasks` array in the correct order
         tasks = [
             utils.validate(docName, {opts: permittedOptions}),
-            handlePermissions,
+            utils.handlePublicPermissions(docName, 'browse'),
             utils.convertOptions(allowedIncludes),
             doQuery
         ];
@@ -122,18 +109,9 @@ users = {
         var attrs = ['id', 'slug', 'status', 'email', 'role'],
             tasks;
 
-        /**
-         * ### Handle Permissions
-         * Convert 'me' safely
-         * @param {Object} options
-         * @returns {Object} options
-         */
-        function handlePermissions(options) {
-            if (options.data.id === 'me' && options.context && options.context.user) {
-                options.data.id = options.context.user;
-            }
-
-            return options;
+        // Special handling for id = 'me'
+        if (options.id === 'me' && options.context && options.context.user) {
+            options.id = options.context.user;
         }
 
         /**
@@ -149,7 +127,7 @@ users = {
         // Push all of our tasks into a `tasks` array in the correct order
         tasks = [
             utils.validate(docName, {attrs: attrs}),
-            handlePermissions,
+            utils.handlePublicPermissions(docName, 'read'),
             utils.convertOptions(allowedIncludes),
             doQuery
         ];
@@ -160,7 +138,7 @@ users = {
                 return {users: [result.toJSON(options)]};
             }
 
-            return Promise.reject(new errors.NotFoundError('User not found.'));
+            return Promise.reject(new errors.NotFoundError(i18n.t('errors.api.users.userNotFound')));
         });
     },
 
@@ -177,6 +155,11 @@ users = {
 
         if (object.users && object.users[0] && object.users[0].roles && object.users[0].roles[0]) {
             options.editRoles = true;
+        }
+
+        // The password should never be set via this endpoint, if it is passed, ignore it
+        if (object.users && object.users[0] && object.users[0].password) {
+            delete object.users[0].password;
         }
 
         /**
@@ -210,14 +193,14 @@ users = {
                     var contextRoleId = contextUser.related('roles').toJSON(options)[0].id;
 
                     if (roleId !== contextRoleId && editedUserId === contextUser.id) {
-                        return Promise.reject(new errors.NoPermissionError('You cannot change your own role.'));
+                        return Promise.reject(new errors.NoPermissionError(i18n.t('errors.api.users.cannotChangeOwnRole')));
                     }
 
                     return dataProvider.User.findOne({role: 'Owner'}).then(function (owner) {
                         if (contextUser.id !== owner.id) {
                             if (editedUserId === owner.id) {
                                 if (owner.related('roles').at(0).id !== roleId) {
-                                    return Promise.reject(new errors.NoPermissionError('Cannot change Owner\'s role.'));
+                                    return Promise.reject(new errors.NoPermissionError(i18n.t('errors.api.users.cannotChangeOwnersRole')));
                                 }
                             } else if (roleId !== contextRoleId) {
                                 return canThis(options.context).assign.role(role).then(function () {
@@ -230,7 +213,7 @@ users = {
                     });
                 });
             }).catch(function handleError(error) {
-                return errors.handleAPIError(error, 'You do not have permission to edit this user');
+                return errors.formatAndRejectAPIError(error, i18n.t('errors.api.users.noPermissionToEditUser'));
             });
         }
 
@@ -257,7 +240,7 @@ users = {
                 return {users: [result.toJSON(options)]};
             }
 
-            return Promise.reject(new errors.NotFoundError('User not found.'));
+            return Promise.reject(new errors.NotFoundError(i18n.t('errors.api.users.userNotFound')));
         });
     },
 
@@ -287,7 +270,7 @@ users = {
                     // Make sure user is allowed to add a user with this role
                     return dataProvider.Role.findOne({id: roleId}).then(function (role) {
                         if (role.get('name') === 'Owner') {
-                            return Promise.reject(new errors.NoPermissionError('Not allowed to create an owner user.'));
+                            return Promise.reject(new errors.NoPermissionError(i18n.t('errors.api.users.notAllowedToCreateOwner')));
                         }
 
                         return canThis(options.context).assign.role(role);
@@ -298,7 +281,7 @@ users = {
 
                 return options;
             }).catch(function handleError(error) {
-                return errors.handleAPIError(error, 'You do not have permission to add this user');
+                return errors.formatAndRejectAPIError(error, i18n.t('errors.api.users.noPermissionToAddUser'));
             });
         }
 
@@ -317,7 +300,7 @@ users = {
                 newUser.password = globalUtils.uid(50);
                 newUser.status = 'invited';
             } else {
-                return Promise.reject(new errors.BadRequestError('No email provided.'));
+                return Promise.reject(new errors.BadRequestError(i18n.t('errors.api.users.noEmailProvided')));
             }
 
             return dataProvider.User.getByEmail(
@@ -330,7 +313,7 @@ users = {
                     if (foundUser.get('status') === 'invited' || foundUser.get('status') === 'invited-pending') {
                         return foundUser;
                     } else {
-                        return Promise.reject(new errors.BadRequestError('User is already registered.'));
+                        return Promise.reject(new errors.BadRequestError(i18n.t('errors.api.users.userAlreadyRegistered')));
                     }
                 }
             }).then(function (invitedUser) {
@@ -349,7 +332,8 @@ users = {
                 return Promise.resolve({users: [user]});
             }).catch(function (error) {
                 if (error && error.errorType === 'EmailError') {
-                    error.message = 'Error sending email: ' + error.message + ' Please check your email settings and resend the invitation.';
+                    error.message = i18n.t('errors.api.users.errorSendingEmail.error', {message: error.message}) + ' ' +
+                        i18n.t('errors.api.users.errorSendingEmail.help');
                     errors.logWarn(error.message);
 
                     // If sending the invitation failed, set status to invited-pending
@@ -377,7 +361,7 @@ users = {
     /**
      * ## Destroy
      * @param {{id, context}} options
-     * @returns {Promise<User>}
+     * @returns {Promise}
      */
     destroy: function destroy(options) {
         var tasks;
@@ -393,39 +377,28 @@ users = {
                 options.status = 'all';
                 return options;
             }).catch(function handleError(error) {
-                return errors.handleAPIError(error, 'You do not have permission to destroy this user.');
+                return errors.formatAndRejectAPIError(error, i18n.t('errors.api.users.noPermissionToDestroyUser'));
             });
         }
 
         /**
-         * ### Model Query
+         * ### Delete User
          * Make the call to the Model layer
          * @param {Object} options
-         * @returns {Object} options
          */
-        function doQuery(options) {
-            return users.read(options).then(function (result) {
-                return dataProvider.Base.transaction(function (t) {
-                    options.transacting = t;
+        function deleteUser(options) {
+            return dataProvider.Base.transaction(function (t) {
+                options.transacting = t;
 
-                    Promise.all([
-                        dataProvider.Accesstoken.destroyByUser(options),
-                        dataProvider.Refreshtoken.destroyByUser(options),
-                        dataProvider.Post.destroyByAuthor(options)
-                    ]).then(function () {
-                        return dataProvider.User.destroy(options);
-                    }).then(function () {
-                        t.commit();
-                    }).catch(function (error) {
-                        t.rollback(error);
-                    });
-                }).then(function () {
-                    return result;
-                }, function (error) {
-                    return Promise.reject(new errors.InternalServerError(error));
-                });
-            }, function (error) {
-                return errors.handleAPIError(error);
+                return Promise.all([
+                    dataProvider.Accesstoken.destroyByUser(options),
+                    dataProvider.Refreshtoken.destroyByUser(options),
+                    dataProvider.Post.destroyByAuthor(options)
+                ]).then(function () {
+                    return dataProvider.User.destroy(options);
+                }).return(null);
+            }).catch(function (error) {
+                return errors.formatAndRejectAPIError(error);
             });
         }
 
@@ -434,7 +407,7 @@ users = {
             utils.validate(docName, {opts: utils.idDefaultOptions}),
             handlePermissions,
             utils.convertOptions(allowedIncludes),
-            doQuery
+            deleteUser
         ];
 
         // Pipeline calls each task passing the result of one to be the arguments for the next
@@ -460,7 +433,7 @@ users = {
             return canThis(options.context).edit.user(options.data.password[0].user_id).then(function permissionGranted() {
                 return options;
             }).catch(function (error) {
-                return errors.handleAPIError(error, 'You do not have permission to change the password for this user');
+                return errors.formatAndRejectAPIError(error, i18n.t('errors.api.users.noPermissionToChangeUsersPwd'));
             });
         }
 
@@ -487,7 +460,7 @@ users = {
 
         // Pipeline calls each task passing the result of one to be the arguments for the next
         return pipeline(tasks, object, options).then(function formatResponse() {
-            return Promise.resolve({password: [{message: 'Password changed successfully.'}]});
+            return Promise.resolve({password: [{message: i18n.t('notices.api.users.pwdChangedSuccessfully')}]});
         });
     },
 
@@ -512,7 +485,7 @@ users = {
             }).then(function () {
                 return options;
             }).catch(function (error) {
-                return errors.handleAPIError(error);
+                return errors.formatAndRejectAPIError(error);
             });
         }
 
@@ -538,7 +511,7 @@ users = {
         return pipeline(tasks, object, options).then(function formatResult(result) {
             return Promise.resolve({users: result});
         }).catch(function (error) {
-            return errors.handleAPIError(error);
+            return errors.formatAndRejectAPIError(error);
         });
     }
 };

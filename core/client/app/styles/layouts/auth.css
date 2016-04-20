@@ -26,20 +26,31 @@
     position: relative;
 }
 
+.forgotten-wrap input {
+    padding-right: 7rem;
+}
+
 .forgotten-wrap .forgotten-link {
     position: absolute;
     top: 10px;
-    right: 0;
+    right: 1px;
     bottom: 10px;
-    padding: 0 12px;
+    padding: 0 11px 0 12px;
     border-left: #dae1e3 1px solid;
     border-radius: 0;
     text-transform: none;
     letter-spacing: 0;
+    font-size: 1.1rem;
+    line-height: 1.2rem;
 }
 
 .forgotten-link:hover {
     border-left: #dae1e3 1px solid;
     color: color(var(--blue) lightness(-20%));
     text-decoration: none;
+}
+
+.forgotten-link:active {
+    box-shadow: none;
+    text-decoration: underline;
 }

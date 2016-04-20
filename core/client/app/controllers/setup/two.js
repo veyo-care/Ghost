@@ -1,21 +1,30 @@
 import Ember from 'ember';
-import {request as ajax} from 'ic-ajax';
 import ValidationEngine from 'ghost/mixins/validation-engine';
 
-export default Ember.Controller.extend(ValidationEngine, {
+const {
+    Controller,
+    RSVP: {Promise},
+    inject: {service, controller},
+    isArray
+} = Ember;
+
+export default Controller.extend(ValidationEngine, {
     size: 90,
     blogTitle: null,
     name: null,
     email: '',
-    validEmail: '',
     password: null,
     image: null,
     blogCreated: false,
+    submitting: false,
+    flowErrors: '',
 
-    ghostPaths: Ember.inject.service('ghost-paths'),
-    notifications: Ember.inject.service(),
-    application: Ember.inject.controller(),
-    config: Ember.inject.service(),
+    ghostPaths: service(),
+    notifications: service(),
+    application: controller(),
+    config: service(),
+    session: service(),
+    ajax: service(),
 
     // ValidationEngine settings
     validationType: 'setup',
@@ -25,18 +34,16 @@ export default Ember.Controller.extend(ValidationEngine, {
      * @param  {Object} user User object, returned from the 'setup' api call
      * @return {Ember.RSVP.Promise} A promise that takes care of both calls
      */
-    sendImage: function (user) {
-        var self = this,
-            image = this.get('image');
+    sendImage(user) {
+        let image = this.get('image');
 
-        return new Ember.RSVP.Promise(function (resolve, reject) {
+        return new Promise((resolve, reject) => {
             image.formData = {};
             image.submit()
-                .success(function (response) {
+                .success((response) => {
+                    let usersUrl = this.get('ghostPaths.url').api('users', user.id.toString());
                     user.image = response;
-                    ajax({
-                        url: self.get('ghostPaths.url').api('users', user.id.toString()),
-                        type: 'PUT',
+                    this.get('ajax').put(usersUrl, {
                         data: {
                             users: [user]
                         }
@@ -46,19 +53,63 @@ export default Ember.Controller.extend(ValidationEngine, {
         });
     },
 
-    actions: {
-        setup: function () {
-            var self = this,
-                data = self.getProperties('blogTitle', 'name', 'email', 'password', 'image'),
-                notifications = this.get('notifications'),
-                config = this.get('config'),
-                method = this.get('blogCreated') ? 'PUT' : 'POST';
+    _handleSaveError(resp) {
+        this.toggleProperty('submitting');
 
-            this.validate().then(function () {
-                self.set('showError', false);
-                ajax({
-                    url: self.get('ghostPaths.url').api('authentication', 'setup'),
-                    type: method,
+        if (resp && resp.errors && isArray(resp.errors)) {
+            this.set('flowErrors', resp.errors[0].message);
+        } else {
+            this.get('notifications').showAPIError(resp, {key: 'setup.blog-details'});
+        }
+    },
+
+    _handleAuthenticationError(error) {
+        this.toggleProperty('submitting');
+        if (error && error.errors) {
+            this.set('flowErrors', error.errors[0].message);
+        } else {
+            // Connection errors don't return proper status message, only req.body
+            this.get('notifications').showAlert('There was a problem on the server.', {type: 'error', key: 'setup.authenticate.failed'});
+        }
+    },
+
+    afterAuthentication(result) {
+        if (this.get('image')) {
+            this.sendImage(result.users[0])
+            .then(() => {
+                this.toggleProperty('submitting');
+                this.transitionToRoute('setup.three');
+            }).catch((resp) => {
+                this.toggleProperty('submitting');
+                this.get('notifications').showAPIError(resp, {key: 'setup.blog-details'});
+            });
+        } else {
+            this.toggleProperty('submitting');
+            this.transitionToRoute('setup.three');
+        }
+    },
+
+    actions: {
+        preValidate(model) {
+            // Only triggers validation if a value has been entered, preventing empty errors on focusOut
+            if (this.get(model)) {
+                this.validate({property: model});
+            }
+        },
+
+        setup() {
+            let setupProperties = ['blogTitle', 'name', 'email', 'password'];
+            let data = this.getProperties(setupProperties);
+            let config = this.get('config');
+            let method = this.get('blogCreated') ? 'put' : 'post';
+
+            this.toggleProperty('submitting');
+            this.set('flowErrors', '');
+
+            this.get('hasValidated').addObjects(setupProperties);
+            this.validate().then(() => {
+                let authUrl = this.get('ghostPaths.url').api('authentication', 'setup');
+                this.get('ajax')[method](authUrl, {
                     data: {
                         setup: [{
                             name: data.name,
@@ -67,43 +118,35 @@ export default Ember.Controller.extend(ValidationEngine, {
                             blogTitle: data.blogTitle
                         }]
                     }
-                }).then(function (result) {
+                }).then((result) => {
                     config.set('blogTitle', data.blogTitle);
-                    // Don't call the success handler, otherwise we will be redirected to admin
-                    self.get('application').set('skipAuthSuccessHandler', true);
-                    self.get('session').authenticate('simple-auth-authenticator:oauth2-password-grant', {
-                        identification: self.get('email'),
-                        password: self.get('password')
-                    }).then(function () {
-                        self.set('password', '');
-                        self.set('blogCreated', true);
-                        if (data.image) {
-                            self.sendImage(result.users[0])
-                            .then(function () {
-                                self.transitionToRoute('setup.three');
-                            }).catch(function (resp) {
-                                notifications.showAPIError(resp);
-                            });
-                        } else {
-                            self.transitionToRoute('setup.three');
-                        }
-                    });
-                }).catch(function (resp) {
-                    notifications.showAPIError(resp);
-                });
-            }).catch(function () {
-                self.set('showError', true);
-            });
-        },
-        setImage: function (image) {
-            this.set('image', image);
-        },
-        handleEmail: function () {
-            var self = this;
 
-            this.validate({property: 'email'}).then(function () {
-                self.set('validEmail', self.get('email'));
+                    // don't try to login again if we are already logged in
+                    if (this.get('session.isAuthenticated')) {
+                        return this.afterAuthentication(result);
+                    }
+
+                    // Don't call the success handler, otherwise we will be redirected to admin
+                    this.set('session.skipAuthSuccessHandler', true);
+                    this.get('session').authenticate('authenticator:oauth2', this.get('email'), this.get('password')).then(() => {
+                        this.set('blogCreated', true);
+                        return this.afterAuthentication(result);
+                    }).catch((error) => {
+                        this._handleAuthenticationError(error);
+                    }).finally(() => {
+                        this.set('session.skipAuthSuccessHandler', undefined);
+                    });
+                }).catch((error) => {
+                    this._handleSaveError(error);
+                });
+            }).catch(() => {
+                this.toggleProperty('submitting');
+                this.set('flowErrors', 'Please fill out the form to setup your blog.');
             });
+        },
+
+        setImage(image) {
+            this.set('image', image);
         }
     }
 });

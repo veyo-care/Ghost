@@ -1,29 +1,47 @@
 import Ember from 'ember';
 
-export default Ember.Component.extend({
+const {
+    Component,
+    inject: {service},
+    computed
+} = Ember;
+
+export default Component.extend({
     tagName: 'nav',
     classNames: ['gh-nav'],
     classNameBindings: ['open'],
 
-    config: Ember.inject.service(),
-
     open: false,
 
-    mouseEnter: function () {
+    navMenuIcon: computed('ghostPaths.subdir', function () {
+        let url = `${this.get('ghostPaths.subdir')}/ghost/img/ghosticon.jpg`;
+
+        return Ember.String.htmlSafe(`background-image: url(${url})`);
+    }),
+
+    config: service(),
+    session: service(),
+    ghostPaths: service(),
+
+    mouseEnter() {
         this.sendAction('onMouseEnter');
     },
 
     actions: {
-        toggleAutoNav: function () {
+        toggleAutoNav() {
             this.sendAction('toggleMaximise');
         },
 
-        openModal: function (modal) {
-            this.sendAction('openModal', modal);
+        showMarkdownHelp() {
+            this.sendAction('showMarkdownHelp');
         },
 
-        closeMobileMenu: function () {
+        closeMobileMenu() {
             this.sendAction('closeMobileMenu');
+        },
+
+        openAutoNav() {
+            this.sendAction('openAutoNav');
         }
     }
 });

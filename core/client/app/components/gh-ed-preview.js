@@ -1,45 +1,90 @@
 import Ember from 'ember';
-import uploader from 'ghost/assets/lib/uploader';
 
-var Preview = Ember.Component.extend({
-    config: Ember.inject.service(),
+const {
+    $,
+    Component,
+    run,
+    uuid
+} = Ember;
 
-    didInsertElement: function () {
-        this.set('scrollWrapper', this.$().closest('.entry-preview-content'));
-        Ember.run.scheduleOnce('afterRender', this, this.dropzoneHandler);
+export default Component.extend({
+    _scrollWrapper: null,
+
+    init() {
+        this._super(...arguments);
+        this.set('imageUploadComponents', Ember.A([]));
     },
 
-    adjustScrollPosition: Ember.observer('scrollPosition', function () {
-        var scrollWrapper = this.get('scrollWrapper'),
-            scrollPosition = this.get('scrollPosition');
+    didInsertElement() {
+        this._super(...arguments);
+        this._scrollWrapper = this.$().closest('.entry-preview-content');
+        this.adjustScrollPosition(this.get('scrollPosition'));
+        run.scheduleOnce('afterRender', this, this.registerImageUploadComponents);
+    },
+
+    didReceiveAttrs(attrs) {
+        this._super(...arguments);
+
+        if (!attrs.oldAttrs) {
+            return;
+        }
+
+        if (attrs.newAttrs.scrollPosition && attrs.newAttrs.scrollPosition.value !== attrs.oldAttrs.scrollPosition.value) {
+            this.adjustScrollPosition(attrs.newAttrs.scrollPosition.value);
+        }
+
+        if (attrs.newAttrs.markdown.value !== attrs.oldAttrs.markdown.value) {
+            // we need to clear the rendered components as we are unable to
+            // retain a reliable reference for the component's position in the
+            // document
+            // TODO: it may be possible to extract the dropzones and use the
+            // image src as a key, re-connecting any that match and
+            // dropping/re-rendering any unknown/no-source instances
+            this.set('imageUploadComponents', Ember.A([]));
+            run.scheduleOnce('afterRender', this, this.registerImageUploadComponents);
+        }
+    },
+
+    adjustScrollPosition(scrollPosition) {
+        let scrollWrapper = this._scrollWrapper;
 
         if (scrollWrapper) {
             scrollWrapper.scrollTop(scrollPosition);
         }
-    }),
-
-    dropzoneHandler: function () {
-        var dropzones = $('.js-drop-zone');
-
-        uploader.call(dropzones, {
-            editor: true,
-            fileStorage: this.get('config.fileStorage')
-        });
-
-        dropzones.on('uploadstart', Ember.run.bind(this, 'sendAction', 'uploadStarted'));
-        dropzones.on('uploadfailure', Ember.run.bind(this, 'sendAction', 'uploadFinished'));
-        dropzones.on('uploadsuccess', Ember.run.bind(this, 'sendAction', 'uploadFinished'));
-        dropzones.on('uploadsuccess', Ember.run.bind(this, 'sendAction', 'uploadSuccess'));
-
-        // Set the current height so we can listen
-        this.sendAction('updateHeight', this.$().height());
     },
 
-    // fire off 'enable' API function from uploadManager
-    // might need to make sure markdown has been processed first
-    reInitDropzones: Ember.observer('markdown', function () {
-        Ember.run.scheduleOnce('afterRender', this, this.dropzoneHandler);
-    })
-});
+    registerImageUploadComponents() {
+        let dropzones = $('.js-drop-zone');
 
-export default Preview;
+        dropzones.each((i, el) => {
+            let id = uuid();
+            let destinationElementId = `image-uploader-${id}`;
+            let src = $(el).find('.js-upload-target').attr('src');
+
+            let imageUpload = Ember.Object.create({
+                destinationElementId,
+                id,
+                src,
+                index: i
+            });
+
+            el.id = destinationElementId;
+            $(el).empty();
+            $(el).removeClass('image-uploader');
+
+            run.schedule('afterRender', () => {
+                this.get('imageUploadComponents').pushObject(imageUpload);
+            });
+        });
+    },
+
+    actions: {
+        updateImageSrc(index, url) {
+            this.attrs.updateImageSrc(index, url);
+        },
+
+        updateHeight() {
+            this.attrs.updateHeight(this.$().height());
+        }
+    }
+});

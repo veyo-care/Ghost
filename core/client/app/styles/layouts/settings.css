@@ -16,6 +16,15 @@
     padding: 0 20px;
 }
 
+.gh-blognav-item--error {
+    margin-bottom: calc(1em + 10px);
+}
+
+.gh-blognav-item .response {
+    position: absolute;
+    margin-bottom: 0;
+}
+
 .gh-blognav-grab {
     padding: 0 16px 0 0;
     width: 16px;
@@ -23,10 +32,6 @@
     text-indent: -4px;
     font-size: 16px;
     cursor: move;
-}
-
-.gh-blognav-url .fake-placeholder {
-    color: #c1c1c1;
 }
 
 .gh-blognav-line {
@@ -74,13 +79,9 @@
     background: color(var(--green) lightness(-10%));
 }
 
-.gh-blognav-item:last-child {
+.gh-blognav-item:not(.gh-blognav-item--sortable) {
     padding-left: calc(16px + 20px);
     /* icon-grab + nav-item padding) */
-}
-
-.gh-blognav-item:last-child .gh-blognav-grab {
-    display: none;
 }
 
 /* Remove space between inputs on smaller screens */

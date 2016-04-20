@@ -1,12 +1,21 @@
 import Ember from 'ember';
-var AboutController = Ember.Controller.extend({
+
+const {
+    Controller,
+    computed
+} = Ember;
+
+export default Controller.extend({
     updateNotificationCount: 0,
 
     actions: {
-        updateNotificationChange: function (count) {
+        updateNotificationChange(count) {
             this.set('updateNotificationCount', count);
         }
-    }
-});
+    },
 
-export default AboutController;
+    copyrightYear: computed(function () {
+        let date = new Date();
+        return date.getFullYear();
+    })
+});

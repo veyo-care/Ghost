@@ -3,20 +3,22 @@ import EditorAPI from 'ghost/mixins/ed-editor-api';
 import EditorShortcuts from 'ghost/mixins/ed-editor-shortcuts';
 import EditorScroll from 'ghost/mixins/ed-editor-scroll';
 
-export default Ember.TextArea.extend(EditorAPI, EditorShortcuts, EditorScroll, {
+const {TextArea, run} = Ember;
+
+export default TextArea.extend(EditorAPI, EditorShortcuts, EditorScroll, {
     focus: false,
 
     /**
      * Tell the controller about focusIn events, will trigger an autosave on a new document
      */
-    focusIn: function () {
+    focusIn() {
         this.sendAction('onFocusIn');
     },
 
     /**
      * Sets the focus of the textarea if needed
      */
-    setFocus: function () {
+    setFocus() {
         if (this.get('focus')) {
             this.$().val(this.$().val()).focus();
         }
@@ -25,35 +27,25 @@ export default Ember.TextArea.extend(EditorAPI, EditorShortcuts, EditorScroll, {
     /**
      * Sets up properties at render time
      */
-    didInsertElement: function () {
-        this._super();
+    didInsertElement() {
+        this._super(...arguments);
 
         this.setFocus();
 
-        this.sendAction('setEditor', this);
+        this.get('setEditor')(this);
 
-        Ember.run.scheduleOnce('afterRender', this, this.afterRenderEvent);
+        run.scheduleOnce('afterRender', this, this.afterRenderEvent);
     },
 
-    afterRenderEvent: function () {
+    afterRenderEvent() {
         if (this.get('focus') && this.get('focusCursorAtEnd')) {
             this.setSelection('end');
         }
     },
 
-    /**
-     * Disable editing in the textarea (used while an upload is in progress)
-     */
-    disable: function () {
-        var textarea = this.get('element');
-        textarea.setAttribute('readonly', 'readonly');
-    },
-
-    /**
-     * Reenable editing in the textarea
-     */
-    enable: function () {
-        var textarea = this.get('element');
-        textarea.removeAttribute('readonly');
+    actions: {
+        toggleCopyHTMLModal(generatedHTML) {
+            this.get('toggleCopyHTMLModal')(generatedHTML);
+        }
     }
 });

@@ -1,7 +1,12 @@
 import Ember from 'ember';
 
-var blogUrl = Ember.Component.extend({
-    tagName: ''
-});
+const {
+    Component,
+    inject: {service}
+} = Ember;
 
-export default blogUrl;
+export default Component.extend({
+    tagName: '',
+
+    config: service()
+});

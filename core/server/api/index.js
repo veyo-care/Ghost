@@ -15,16 +15,15 @@ var _              = require('lodash'),
     roles          = require('./roles'),
     settings       = require('./settings'),
     tags           = require('./tags'),
+    clients        = require('./clients'),
     themes         = require('./themes'),
     users          = require('./users'),
     slugs          = require('./slugs'),
     authentication = require('./authentication'),
     uploads        = require('./upload'),
-    dataExport     = require('../data/export'),
-    errors         = require('../errors'),
+    exporter       = require('../data/export'),
 
     http,
-    formatHttpErrors,
     addHeaders,
     cacheInvalidationHeader,
     locationHeader,
@@ -36,7 +35,7 @@ var _              = require('lodash'),
  * Initialise the API - populate the settings cache
  * @return {Promise(Settings)} Resolves to Settings Collection
  */
-init = function () {
+init = function init() {
     return settings.updateSettingsCache();
 };
 
@@ -53,24 +52,26 @@ init = function () {
  * @param {Object} result API method result
  * @return {String} Resolves to header string
  */
-cacheInvalidationHeader = function (req, result) {
+cacheInvalidationHeader = function cacheInvalidationHeader(req, result) {
     var parsedUrl = req._parsedUrl.pathname.replace(/^\/|\/$/g, '').split('/'),
         method = req.method,
         endpoint = parsedUrl[0],
-        cacheInvalidate,
         jsonResult = result.toJSON ? result.toJSON() : result,
+        INVALIDATE_ALL = '/*',
         post,
         hasStatusChanged,
-        wasDeleted,
         wasPublishedUpdated;
 
-    if (method === 'POST' || method === 'PUT' || method === 'DELETE') {
-        if (endpoint === 'settings' || endpoint === 'users' || endpoint === 'db' || endpoint === 'tags') {
-            cacheInvalidate = '/*';
+    if (['POST', 'PUT', 'DELETE'].indexOf(method) > -1) {
+        if (['settings', 'users', 'db', 'tags'].indexOf(endpoint) > -1) {
+            return INVALIDATE_ALL;
         } else if (endpoint === 'posts') {
+            if (method === 'DELETE') {
+                return INVALIDATE_ALL;
+            }
+
             post = jsonResult.posts[0];
             hasStatusChanged = post.statusChanged;
-            wasDeleted = method === 'DELETE';
             // Invalidate cache when post was updated but not when post is draft
             wasPublishedUpdated = method === 'PUT' && post.status === 'published';
 
@@ -78,15 +79,13 @@ cacheInvalidationHeader = function (req, result) {
             delete post.statusChanged;
 
             // Don't set x-cache-invalidate header for drafts
-            if (hasStatusChanged || wasDeleted || wasPublishedUpdated) {
-                cacheInvalidate = '/*';
+            if (hasStatusChanged || wasPublishedUpdated) {
+                return INVALIDATE_ALL;
             } else {
-                cacheInvalidate = '/' + config.routeKeywords.preview + '/' + post.uuid + '/';
+                return '/' + config.routeKeywords.preview + '/' + post.uuid + '/';
             }
         }
     }
-
-    return cacheInvalidate;
 };
 
 /**
@@ -100,7 +99,7 @@ cacheInvalidationHeader = function (req, result) {
  * @param {Object} result API method result
  * @return {String} Resolves to header string
  */
-locationHeader = function (req, result) {
+locationHeader = function locationHeader(req, result) {
     var apiRoot = config.urlFor('api'),
         location,
         newObject;
@@ -138,44 +137,13 @@ locationHeader = function (req, result) {
  * @see http://tools.ietf.org/html/rfc598
  * @return {string}
  */
-contentDispositionHeader = function () {
-    return dataExport.fileName().then(function (filename) {
+contentDispositionHeader = function contentDispositionHeader() {
+    return exporter.fileName().then(function then(filename) {
         return 'Attachment; filename="' + filename + '"';
     });
 };
 
-/**
- * ### Format HTTP Errors
- * Converts the error response from the API into a format which can be returned over HTTP
- *
- * @private
- * @param {Array} error
- * @return {{errors: Array, statusCode: number}}
- */
-formatHttpErrors = function (error) {
-    var statusCode = 500,
-        errors = [];
-
-    if (!_.isArray(error)) {
-        error = [].concat(error);
-    }
-
-    _.each(error, function (errorItem) {
-        var errorContent = {};
-
-        // TODO: add logic to set the correct status code
-        statusCode = errorItem.code || 500;
-
-        errorContent.message = _.isString(errorItem) ? errorItem :
-            (_.isObject(errorItem) ? errorItem.message : 'Unknown API Error');
-        errorContent.errorType = errorItem.errorType || 'InternalServerError';
-        errors.push(errorContent);
-    });
-
-    return {errors: errors, statusCode: statusCode};
-};
-
-addHeaders = function (apiMethod, req, res, result) {
+addHeaders = function addHeaders(apiMethod, req, res, result) {
     var cacheInvalidation,
         location,
         contentDisposition;
@@ -220,11 +188,11 @@ addHeaders = function (apiMethod, req, res, result) {
  * @param {Function} apiMethod API method to call
  * @return {Function} middleware format function to be called by the route when a matching request is made
  */
-http = function (apiMethod) {
-    return function (req, res) {
+http = function http(apiMethod) {
+    return function apiHandler(req, res, next) {
         // We define 2 properties for using as arguments in API calls:
         var object = req.body,
-            options = _.extend({}, req.files, req.query, req.params, {
+            options = _.extend({}, req.file, req.query, req.params, {
                 context: {
                     user: (req.user && req.user.id) ? req.user.id : null
                 }
@@ -239,15 +207,17 @@ http = function (apiMethod) {
 
         return apiMethod(object, options).tap(function onSuccess(response) {
             // Add X-Cache-Invalidate, Location, and Content-Disposition headers
-            return addHeaders(apiMethod, req, res, response);
-        }).then(function (response) {
+            return addHeaders(apiMethod, req, res, (response || {}));
+        }).then(function then(response) {
+            if (req.method === 'DELETE') {
+                return res.status(204).end();
+            }
+
             // Send a properly formatting HTTP response containing the data with correct headers
             res.json(response || {});
-        }).catch(function onError(error) {
-            errors.logError(error);
-            var httpErrors = formatHttpErrors(error);
-            // Send a properly formatted HTTP response containing the errors
-            res.status(httpErrors.statusCode).json({errors: httpErrors.errors});
+        }).catch(function onAPIError(error) {
+            // To be handled by the API middleware
+            next(error);
         });
     };
 };
@@ -268,6 +238,7 @@ module.exports = {
     roles: roles,
     settings: settings,
     tags: tags,
+    clients: clients,
     themes: themes,
     users: users,
     slugs: slugs,

@@ -1,5 +1,4 @@
 /*global describe, it, before, after */
-/*jshint expr:true*/
 var testUtils     = require('../../../utils'),
     should        = require('should'),
     supertest     = require('supertest'),
@@ -21,10 +20,7 @@ describe('Settings API', function () {
         }).then(function (token) {
             accesstoken = token;
             done();
-        }).catch(function (e) {
-            console.log('Ghost Error: ', e);
-            console.log(e.stack);
-        });
+        }).catch(done);
     });
 
     after(function (done) {
@@ -38,7 +34,7 @@ describe('Settings API', function () {
         request.get(testUtils.API.getApiQuery('settings/'))
             .set('Authorization', 'Bearer ' + accesstoken)
             .expect('Content-Type', /json/)
-            .expect('Cache-Control', testUtils.cacheRules['private'])
+            .expect('Cache-Control', testUtils.cacheRules.private)
             .expect(200)
             .end(function (err, res) {
                 if (err) {
@@ -47,7 +43,7 @@ describe('Settings API', function () {
 
                 should.not.exist(res.headers['x-cache-invalidate']);
                 var jsonResponse = res.body;
-                jsonResponse.should.exist;
+                should.exist(jsonResponse);
 
                 testUtils.API.checkResponse(jsonResponse, 'settings');
                 done();
@@ -58,7 +54,7 @@ describe('Settings API', function () {
         request.get(testUtils.API.getApiQuery('settings/title/'))
             .set('Authorization', 'Bearer ' + accesstoken)
             .expect('Content-Type', /json/)
-            .expect('Cache-Control', testUtils.cacheRules['private'])
+            .expect('Cache-Control', testUtils.cacheRules.private)
             .expect(200)
             .end(function (err, res) {
                 if (err) {
@@ -68,12 +64,12 @@ describe('Settings API', function () {
                 should.not.exist(res.headers['x-cache-invalidate']);
                 var jsonResponse = res.body;
 
-                jsonResponse.should.exist;
-                jsonResponse.settings.should.exist;
+                should.exist(jsonResponse);
+                should.exist(jsonResponse.settings);
 
                 testUtils.API.checkResponseValue(jsonResponse.settings[0], ['id', 'uuid', 'key', 'value', 'type', 'created_at', 'created_by', 'updated_at', 'updated_by']);
                 jsonResponse.settings[0].key.should.eql('title');
-                testUtils.API.isISO8601(jsonResponse.settings[0].created_at).should.be.true;
+                testUtils.API.isISO8601(jsonResponse.settings[0].created_at).should.be.true();
                 done();
             });
     });
@@ -82,7 +78,7 @@ describe('Settings API', function () {
         request.get(testUtils.API.getApiQuery('settings/testsetting/'))
             .set('Authorization', 'Bearer ' + accesstoken)
             .expect('Content-Type', /json/)
-            .expect('Cache-Control', testUtils.cacheRules['private'])
+            .expect('Cache-Control', testUtils.cacheRules.private)
             .expect(404)
             .end(function (err, res) {
                 if (err) {
@@ -91,8 +87,8 @@ describe('Settings API', function () {
 
                 should.not.exist(res.headers['x-cache-invalidate']);
                 var jsonResponse = res.body;
-                jsonResponse.should.exist;
-                jsonResponse.errors.should.exist;
+                should.exist(jsonResponse);
+                should.exist(jsonResponse.errors);
                 testUtils.API.checkResponseValue(jsonResponse.errors[0], ['message', 'errorType']);
                 done();
             });
@@ -102,7 +98,7 @@ describe('Settings API', function () {
         request.get(testUtils.API.getApiQuery('settings/'))
             .set('Authorization', 'Bearer ' + accesstoken)
             .expect('Content-Type', /json/)
-            .expect('Cache-Control', testUtils.cacheRules['private'])
+            .expect('Cache-Control', testUtils.cacheRules.private)
             .end(function (err, res) {
                 if (err) {
                     return done(err);
@@ -116,14 +112,14 @@ describe('Settings API', function () {
                         ]
                     };
 
-                jsonResponse.should.exist;
-                jsonResponse.settings.should.exist;
+                should.exist(jsonResponse);
+                should.exist(jsonResponse.settings);
 
                 request.put(testUtils.API.getApiQuery('settings/'))
                     .set('Authorization', 'Bearer ' + accesstoken)
                     .send(settingToChange)
                     .expect('Content-Type', /json/)
-                    .expect('Cache-Control', testUtils.cacheRules['private'])
+                    .expect('Cache-Control', testUtils.cacheRules.private)
                     .expect(200)
                     .end(function (err, res) {
                         if (err) {
@@ -132,7 +128,7 @@ describe('Settings API', function () {
 
                         var putBody = res.body;
                         res.headers['x-cache-invalidate'].should.eql('/*');
-                        putBody.should.exist;
+                        should.exist(putBody);
                         putBody.settings[0].value.should.eql(changedValue);
                         testUtils.API.checkResponse(putBody, 'settings');
                         done();
@@ -144,7 +140,7 @@ describe('Settings API', function () {
         request.get(testUtils.API.getApiQuery('settings/'))
             .set('Authorization', 'Bearer ' + accesstoken)
             .expect('Content-Type', /json/)
-            .expect('Cache-Control', testUtils.cacheRules['private'])
+            .expect('Cache-Control', testUtils.cacheRules.private)
             .end(function (err, res) {
                 if (err) {
                     return done(err);
@@ -152,7 +148,7 @@ describe('Settings API', function () {
 
                 var jsonResponse = res.body,
                     changedValue = 'Ghost changed';
-                jsonResponse.should.exist;
+                should.exist(jsonResponse);
                 jsonResponse.title = changedValue;
 
                 request.put(testUtils.API.getApiQuery('settings/'))
@@ -174,7 +170,7 @@ describe('Settings API', function () {
         request.get(testUtils.API.getApiQuery('settings/'))
             .set('Authorization', 'Bearer ' + accesstoken)
             .expect('Content-Type', /json/)
-            .expect('Cache-Control', testUtils.cacheRules['private'])
+            .expect('Cache-Control', testUtils.cacheRules.private)
             .end(function (err, res) {
                 if (err) {
                     return done(err);
@@ -182,7 +178,7 @@ describe('Settings API', function () {
 
                 var jsonResponse = res.body,
                     newValue = 'new value';
-                jsonResponse.should.exist;
+                should.exist(jsonResponse);
                 should.exist(jsonResponse.settings);
                 jsonResponse.settings = [{key: 'testvalue', value: newValue}];
 
@@ -190,7 +186,7 @@ describe('Settings API', function () {
                     .set('Authorization', 'Bearer ' + accesstoken)
                     .send(jsonResponse)
                     .expect('Content-Type', /json/)
-                    .expect('Cache-Control', testUtils.cacheRules['private'])
+                    .expect('Cache-Control', testUtils.cacheRules.private)
                     .expect(404)
                     .end(function (err, res) {
                         if (err) {
@@ -199,7 +195,7 @@ describe('Settings API', function () {
 
                         jsonResponse = res.body;
                         should.not.exist(res.headers['x-cache-invalidate']);
-                        jsonResponse.errors.should.exist;
+                        should.exist(jsonResponse.errors);
                         testUtils.API.checkResponseValue(jsonResponse.errors[0], ['message', 'errorType']);
                         done();
                     });
